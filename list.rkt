@@ -4,6 +4,7 @@
 
 (provide
  zip
+ collect-duplicates
  ; Conversts the values returned from the expression (f args ...) to a list.
  values->list
  ; Conversts the list returned from the expression (f args ...) to values.
@@ -690,3 +691,13 @@
           [(procedure? len)
            (apply len (map length lsts))]
             [else len])))
+
+(define/contract (collect-duplicates lst (fn identity))
+  (->* (list?) (procedure?) any)
+  (define vs (map fn lst))
+  (reverse (for/fold ([acc empty])
+                     ([l lst]
+                      [v vs])
+             (values (if (> (count (λ (x) (equal? x v)) vs) 1)
+                         (cons l acc)
+                         acc)))))

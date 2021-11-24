@@ -52,7 +52,7 @@
    (->i ([mtx list?])
         ()
         (result pair?))]
-    ; returns the length of matrix based on row/column accessor
+  ; returns the length of matrix based on row/column accessor
   [matrix-length
    (->i ([mtx list?])
         (#:accessor (accessor procedure?))
@@ -69,13 +69,13 @@
    (->i ([row exact-nonnegative-integer?]
          [col exact-nonnegative-integer?])
         (#:matrix [mtx (or/c #f (and/c pair? list?))]
-                  #:cols-per-row [cols-per-row exact-nonnegative-integer?])
+         #:cols-per-row [cols-per-row exact-nonnegative-integer?])
         (result exact-nonnegative-integer?))]
   ; convert list position to matrix column/row
   [list-pos->matrix-pos
    (->i ([pos exact-nonnegative-integer?])
         (#:matrix [mtx (or/c #f (and/c pair? list?))]
-                  #:cols-per-row [cols-per-row exact-nonnegative-integer?])
+         #:cols-per-row [cols-per-row exact-nonnegative-integer?])
         (results list?))]
   ; return a new matrix setting position to value
   [matrix-set
@@ -85,7 +85,7 @@
          [val any/c])
         ()
         (result (and/c pair? list?)))]
-    ; return a new matrix mapping (proc v) to each matrix element
+  ; return a new matrix mapping (proc v) to each matrix element
   [matrix-map
    (->i ([proc procedure?]
          [mtx (and/c pair? list?)])
@@ -114,7 +114,7 @@
    (->i ([pred procedure?]
          [mtx list?])
         (#:accessor [accessor procedure?]
-                    #:values [values symbol?])
+         #:values [values symbol?])
         any)]  
   ; return a matrix element or filtered list of matrix elements for pred
   [matrix-findf
@@ -151,13 +151,13 @@
         (result boolean?))]
   ;; Returns a submatrix for mtx analogous to sublist. 
   [submatrix
-  (->i ([mtx list?])
-       (#:row-pos [row-pos (mtx) (integer-in 0 (sub1 (matrix-rows mtx)))]
-        #:row-len [row-len (mtx row-pos) (integer-in 0 (- (matrix-rows mtx) row-pos))]
-        #:col-pos [col-pos (mtx) (integer-in 0 (sub1 (matrix-cols mtx)))]
-        #:col-len [col-len (mtx col-pos)
-                           (integer-in 0 (- (matrix-cols mtx) col-pos))])
-       (result list?))]))
+   (->i ([mtx list?])
+        (#:row-pos [row-pos (mtx) (integer-in 0 (sub1 (matrix-rows mtx)))]
+         #:row-len [row-len (mtx row-pos) (integer-in 0 (- (matrix-rows mtx) row-pos))]
+         #:col-pos [col-pos (mtx) (integer-in 0 (sub1 (matrix-cols mtx)))]
+         #:col-len [col-len (mtx col-pos)
+                            (integer-in 0 (- (matrix-cols mtx) col-pos))])
+        (result list?))]))
 
 ;; ---------------------------------
 ;; import and implementation section
@@ -429,15 +429,15 @@
   (matrix LST #:rows (matrix-rows mtx) #:cols (matrix-cols mtx)))
 
 (module+ test
-         (test-case "matrix-set tests"
-                    (let ([M0 (matrix '(a b c d e f)
-                                      #:rows 2
-                                      #:cols 3)]
-                          [M1 (matrix '(a b c x e f)
-                                      #:rows 2
-                                      #:cols 3)])
-                      (check-equal? M1 
-                                    (matrix-set M0 1 0 'x)))))
+  (test-case "matrix-set tests"
+             (let ([M0 (matrix '(a b c d e f)
+                               #:rows 2
+                               #:cols 3)]
+                   [M1 (matrix '(a b c x e f)
+                               #:rows 2
+                               #:cols 3)])
+               (check-equal? M1 
+                             (matrix-set M0 1 0 'x)))))
 
 ;; matrix-map: proc 
 ;;             matrix
@@ -575,7 +575,7 @@
              (define B (matrix '(1 4 2 5 3 6) #:rows 3))
              (check-equal? (matrix-transpose A) B)
              (check-true (matrix-equal? (matrix-transpose (matrix-transpose A))
-                                         A))))
+                                        A))))
 
 ;; matrix->matrix: mtx1 mtx2 -> matrix?
 ;; Returns a new matrix, mapping mtx1 values onto mtx2. The mapping
@@ -589,23 +589,23 @@
   mtx2)
 
 (module+ test
-         (test-case "matrix->matrix tests"
-                    (let ([M0 (matrix '(1 2 3 4 5 6)
-                                      #:rows 2
-                                      #:cols 3)]
-                          [M1 (matrix #:rows 3
-                                      #:cols 2
-                                      #:fill-value #f)])
-                      (check-equal? (matrix->matrix M0 M1)
-                                    '((1 2) (4 5) (#f #f)))
-                      (check-equal? (matrix->matrix M1 M0)
-                                    '((#f #f 3) (#f #f 6)))
-                      (check-equal? (matrix->matrix (matrix)
-                                                    (matrix '(a b c d) #:order 2))
-                                    (matrix '(a b c d) #:order 2))
-                      (check-equal? (matrix->matrix (matrix '(a b c d) #:order 2)
-                                                    (matrix))
-                                    '()))))
+  (test-case "matrix->matrix tests"
+             (let ([M0 (matrix '(1 2 3 4 5 6)
+                               #:rows 2
+                               #:cols 3)]
+                   [M1 (matrix #:rows 3
+                               #:cols 2
+                               #:fill-value #f)])
+               (check-equal? (matrix->matrix M0 M1)
+                             '((1 2) (4 5) (#f #f)))
+               (check-equal? (matrix->matrix M1 M0)
+                             '((#f #f 3) (#f #f 6)))
+               (check-equal? (matrix->matrix (matrix)
+                                             (matrix '(a b c d) #:order 2))
+                             (matrix '(a b c d) #:order 2))
+               (check-equal? (matrix->matrix (matrix '(a b c d) #:order 2)
+                                             (matrix))
+                             '()))))
 
 ;; matrix-accessor-find: pred? matrix proc -> number
 ;; returns the first ref of the matrix for which pred is true
