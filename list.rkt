@@ -218,13 +218,28 @@
 ;; values-ref: n (f args ...) -> any/c
 ;;           : n f args ... -> any/c
 ;; Returns the nth value of the expression (f args ...).
-(define-syntax (values-ref stx)
+#;(define-syntax (values-ref stx)
   (syntax-case stx ()
     [(_ n (f args ...)) #'(list-ref (values->list (f args ...)) n)]
     [(_ n f args ...)
      #'(cond
          [(procedure? f) (values-ref n (f args ...))]
          [else (values-ref n (values f args ...))])]))
+
+#;(module+ test
+  (test-case "values-ref tests"
+             (check-equal? (values-ref 0 values 1 2 3) 1)
+             (check-equal? (values-ref 0 1 2 3) 1)
+             (check-equal? (values-ref 0 (values 1 2 3)) 1)
+             (check-equal? (values-ref 0 '(values 1 2 3)) '(values 1 2 3))
+             (check-equal? (values-ref 0 '(values 1 2 3) '(+ 4 5 6)) 
+                           '(values 1 2 3))))
+
+(define (values-ref pos proc . vals)
+  (printf "~%vals=~a" vals)
+  (if (natural? pos)
+      (call-with-values (thunk (apply proc vals)) (compose (λ (lst) (list-ref lst pos)) list))
+      (call-with-values (thunk (apply proc vals)) (compose pos list))))
 
 (module+ test
   (test-case "values-ref tests"
@@ -556,7 +571,7 @@
 ;; If pred does not return true then the original list is returned. The second 
 ;; return value indicates whether filtering was successful.
 (define (set-choice-to-value lst pred val)
-  (let ([choices (values-ref 0 (filter/pos pred lst))])
+  (let ([choices (apply values-ref 0 filter/pos pred lst)])
     (if (null? choices)
         (values lst #f)
         (values (list-set lst
@@ -701,3 +716,10 @@
              (values (if (> (count (λ (x) (equal? x v)) vs) 1)
                          (cons l acc)
                          acc)))))
+
+#|
+(define (values-ref pos proc . vals)
+  (if (natural? pos)
+      (call-with-values (thunk (apply proc vals)) (compose (λ (lst) (list-ref lst pos)) list))
+      (call-with-values (thunk (apply proc vals)) (compose pos list))))
+|#

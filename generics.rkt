@@ -2,12 +2,13 @@
 
 ;; This module implements a set of generics utilities.
 
-(provide helper-bind-gen)
+(provide helper-bind-gen member?)
 
 ;; ---------------------------------
 ;; import and implementation section
 
-(require (for-syntax racket/syntax))
+(require (for-syntax racket/syntax)
+         racket/generic)
 
 (module+ test
   (require rackunit
@@ -82,3 +83,22 @@
              (set-x! f1 10)
              
              (check-equal? (foo-x f1) 10)))
+
+(define-generics sequenceable
+  (member? val sequenceable)
+  #:defaults
+  ([list? (define (member? val sequenceable)
+            (vector-member val (list->vector sequenceable)))]
+   [vector? (define (member? val sequenceable)
+               (vector-member val sequenceable))]
+   [string? (define (member? val sequenceable)
+               (vector-member (~a val) (list->vector (map ~a (string->list sequenceable)))))]
+   [symbol? (define (member? val sequenceable)
+               (vector-member (~a val) (list->vector (map ~a (string->list (symbol->string sequenceable))))))]))
+
+(module+ test
+  (test-case "member? tests"
+             (check-equal? (member? 'e '(a b c d e f)) 4)
+             (check-equal? (member? 'e #(a b c d e f)) 4)
+             (check-equal? (member? 'e 'abcdef) 4)
+             (check-equal? (member? 'e "abcdef") 4)))
