@@ -173,16 +173,18 @@
                   matrix-rotate
                   matrix-accessor-find
                   matrix-map)
-         (only-in utils/list
+         (only-in (submod utils/list alt)
                   list->values
-                  values-ref
+                  values->list
+                  values-ref)
+         (only-in utils/list
                   sublist)
          (only-in utils/file
                   make-dir-path-list))
 
 (module+ test
   (require rackunit
-           (only-in utils/list
+           (only-in (submod utils/list alt)
                     values->list)))
 
 
@@ -272,7 +274,7 @@
          [height (image-height img)]
          [colors (image->color-list img)]
          [mtx (matrix colors #:cols width #:rows height)])
-    (values-ref 0 (matrix-accessor-find (negate transparent?) mtx))))
+    (values-ref 0 (thunk (matrix-accessor-find (negate transparent?) mtx)))))
 
 ;; image-frame/stats: color img
 ;; Image stats, center-pinhole and frame. 
