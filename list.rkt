@@ -1,9 +1,19 @@
 #lang racket
 
-;; This module implements a set of list utilities.
+;;;
+;;; LIST
+;;; This module implements a set of list utilities.
+;;;
 
 (provide
+ list*?
+ list->list*
+ list*->list
+ length*
+ assoc->pairs
+ pairs->assoc
  zip
+ combinational-zip
  collect-duplicates
  ; Conversts the values returned from the expression (f args ...) to a list.
  values->list
@@ -51,8 +61,7 @@
   [list-pos
    (->i ([lst list?]
          [ref any/c])
-        (#;()
-         #:is-equal? [is-euqal? procedure?]
+        (#:is-equal? [is-euqal? procedure?]
          #:pos [pos (lst) (integer-in 0 (length lst))]
          #:len (len (lst pos) (integer-in 0 (- (length lst) pos))))
         (result (or/c #f exact-nonnegative-integer?)))]
@@ -60,8 +69,7 @@
   [list-pos*
    (->i ([lst list?]
          [ref any/c])
-        (#;()
-         #:is-equal? [is-euqal? procedure?]
+        (#:is-equal? [is-euqal? procedure?]
          #:pos [pos (lst) (integer-in 0 (length lst))]
          #:len (len (lst pos) (integer-in 0 (- (length lst) pos))))
         (result list?))]
@@ -77,16 +85,14 @@
   [findf/elm
    (->i ([proc procedure?]
          [lst list?])
-        (#;()
-         #:pos [pos (lst) (integer-in 0 (length lst))]
+        (#:pos [pos (lst) (integer-in 0 (length lst))]
          #:len (len (lst pos) (integer-in 0 (- (length lst) pos))))
         (result (or/c #f seq-elm?)))]
   ; Returns seq-elms of the list where proc returns a non-false value.
   [findf/elm*
    (->i ([proc procedure?]
          [lst list?])
-        (#;()
-         #:pos [pos (lst) (integer-in 0 (length lst))]
+        (#:pos [pos (lst) (integer-in 0 (length lst))]
          #:len (len (lst pos) (integer-in 0 (- (length lst) pos))))
         (result (listof seq-elm?)))]
   ; Returns a random element from lst.
@@ -156,7 +162,8 @@
 (require (for-syntax racket/syntax
                      syntax/parse
                      racket/list)
-         racket/function)
+         racket/function
+         utils/kw-pass-through-lambda)
 
 (module+ test (require rackunit
                        (for-syntax syntax/parse
@@ -165,90 +172,70 @@
 
 (struct seq-elm (pos ref) #:transparent)
 
-;; values->list (f args) -> list?
+;; values->list proc . args -> list?
 ;; conversts the values returned from the expression (f args ...) to a list.
-(define-syntax (values->list stx)
-  (syntax-case stx ()
-    [(_ (f args ...))
-     #'(call-with-values (thunk (f args ...)) list)]
-    [(_ f args ...)
-     #'(cond
-         [(procedure? f) (values->list (f args ...))]
-         [else (values->list (values f args ...))])]))
+(define values->list
+  (kw-pass-through-lambda
+   (proc . args)
+   (unless (procedure? proc)
+     (error (format "values->list ~a not a procedure." proc)))
+   (call-with-values (thunk (local-keyword-apply proc args)) list)))
+#;(define (values->list arg . args)
+    (call-with-values (thunk (if (procedure? arg)
+                                 (apply arg args)
+                                 (apply values arg args)))
+                      list))
 
 (module+ test
   (test-case "values->list tests"
              (check-equal? (values->list values) '())
              (check-equal? (values->list values 1 2 3) '(1 2 3))
-             (check-equal? (values->list 1 2 3) '(1 2 3))
-             (check-equal? (values->list (values 1 2 3)) '(1 2 3))
-             (check-equal? (values->list '(values 1 2 3)) '((values 1 2 3)))
-             (check-equal? (values->list '(values 1 2 3) '(+ 4 5 6)) 
-                           '((values 1 2 3) (+ 4 5 6)))))
-
+             (check-equal? (values->list set-choices-to-value '(0 1 2 3 4 5)
+                                         odd?
+                                         2
+                                         #:iter 6)
+                           '((0 2 2 2 4 2) #f))))
+                           
 ;; list->values (f args) -> values?
 ;; Conversts the values returned from the expression (f args ...) to a list.
-(define-syntax (list->values stx)
-  (syntax-case stx (quote)
-    [(_ (quote arg) ...)
-     #'(values (quote arg) ...)]
-    [(_ (f args ...))
-     #'(apply values (f args ...))]
-    [(_ f args ...)
-     #'(cond
-         [(procedure? f) (list->values (f args ...))]
-         [else (list->values (list f args ...))])]))
+(define (list->values arg . args)
+  (apply values (if (procedure? arg)
+                    (apply arg args)
+                    (cons arg args))))
+#;(define-syntax (list->values stx)
+    (syntax-case stx (quote)
+      [(_ (quote arg) ...)
+       #'(values (quote arg) ...)]
+      [(_ (f args ...))
+       #'(apply values (f args ...))]
+      [(_ f args ...)
+       #'(cond
+           [(procedure? f) (list->values (f args ...))]
+           [else (list->values (list f args ...))])]))
 
 (module+ test
   (test-case "list->values tests"
-             (check-equal? 
-              (values->list (list->values list)) '())
-             (check-equal? 
-              (values->list (list->values list 1 2 3)) '(1 2 3))
-             (check-equal? 
-              (values->list (list->values 1 2 3)) '(1 2 3))
-             (check-equal? 
-              (values->list (list->values (list 1 2 3))) '(1 2 3))
-             (check-equal? 
-              (values->list (list->values '(list 1 2 3))) '((list 1 2 3)))
-             (check-equal? 
-              (values->list (list->values '(values 1 2 3) '(+ 4 5 6))) 
-              '((values 1 2 3) (+ 4 5 6)))))
+             (check-equal? (values->list list->values list)
+                           '())
+             (check-equal? (values->list list->values list 1 2 3)
+                           '(1 2 3))
+             (check-equal? (values->list + 1 2 3)
+                           '(6))                          
+             ))
 
-;; values-ref: n (f args ...) -> any/c
-;;           : n f args ... -> any/c
+;; values-ref: n proc args ... -> any/c
+;;           : n args ... -> any/c
 ;; Returns the nth value of the expression (f args ...).
-#;(define-syntax (values-ref stx)
-  (syntax-case stx ()
-    [(_ n (f args ...)) #'(list-ref (values->list (f args ...)) n)]
-    [(_ n f args ...)
-     #'(cond
-         [(procedure? f) (values-ref n (f args ...))]
-         [else (values-ref n (values f args ...))])]))
-
-#;(module+ test
-  (test-case "values-ref tests"
-             (check-equal? (values-ref 0 values 1 2 3) 1)
-             (check-equal? (values-ref 0 1 2 3) 1)
-             (check-equal? (values-ref 0 (values 1 2 3)) 1)
-             (check-equal? (values-ref 0 '(values 1 2 3)) '(values 1 2 3))
-             (check-equal? (values-ref 0 '(values 1 2 3) '(+ 4 5 6)) 
-                           '(values 1 2 3))))
-
 (define (values-ref pos proc . vals)
-  (printf "~%vals=~a" vals)
-  (if (natural? pos)
-      (call-with-values (thunk (apply proc vals)) (compose (λ (lst) (list-ref lst pos)) list))
-      (call-with-values (thunk (apply proc vals)) (compose pos list))))
+  (call-with-values (thunk (if (procedure? proc)
+                               (apply proc vals)
+                               (apply values proc vals)))
+                    (compose (λ (lst) (list-ref lst pos)) list)))
 
 (module+ test
   (test-case "values-ref tests"
              (check-equal? (values-ref 0 values 1 2 3) 1)
-             (check-equal? (values-ref 0 1 2 3) 1)
-             (check-equal? (values-ref 0 (values 1 2 3)) 1)
-             (check-equal? (values-ref 0 '(values 1 2 3)) '(values 1 2 3))
-             (check-equal? (values-ref 0 '(values 1 2 3) '(+ 4 5 6)) 
-                           '(values 1 2 3))))
+             (check-equal? (values-ref 0 1 2 3) 1)))
 
 ;; atom: value -> boolean?
 ;; Returns #t if value is an atom, #f otherwise.
@@ -503,7 +490,7 @@
 (module+ test
   (test-case "filter/pos tests"
              (check-equal? (values->list 
-                            (filter/pos odd? (rest (range 11))))
+                            filter/pos odd? (rest (range 11)))
                            '((0 2 4 6 8)
                              (1 3 5 7 9)))))
 
@@ -571,7 +558,7 @@
 ;; If pred does not return true then the original list is returned. The second 
 ;; return value indicates whether filtering was successful.
 (define (set-choice-to-value lst pred val)
-  (let ([choices (apply values-ref 0 filter/pos pred lst)])
+  (let ([choices (values-ref 0 filter/pos pred lst)])
     (if (null? choices)
         (values lst #f)
         (values (list-set lst
@@ -581,9 +568,9 @@
 (module+ test
   (test-case "set-choice-to-value tests"
              (check-equal? (values->list 
-                            (set-choice-to-value '(2 4 5 8 10)
-                                                 odd?
-                                                 6))
+                            set-choice-to-value '(2 4 5 8 10)
+                            odd?
+                            6)
                            '((2 4 6 8 10) #t))))
 
 ;; set-choices-to-value: lst pred val iter ... -> list?
@@ -597,15 +584,15 @@
 
 (module+ test
   (test-case "set-choices-to-value"
-             (check-equal? (values->list (set-choices-to-value '(0 1 2 3 4 5)
-                                                               odd?
-                                                               2
-                                                               #:iter 6))
+             (check-equal? (values->list (thunk (set-choices-to-value '(0 1 2 3 4 5)
+                                                                      odd?
+                                                                      2
+                                                                      #:iter 6)))
                            '((0 2 2 2 4 2) #f))
-             (check-equal? (values->list (set-choices-to-value '(0 1 2 3 4 5)
-                                                               even?
-                                                               9
-                                                               #:iter 3))
+             (check-equal? (values->list (thunk (set-choices-to-value '(0 1 2 3 4 5)
+                                                                      even?
+                                                                      9
+                                                                      #:iter 3)))
                            '((9 1 9 3 9 5) #t))))
 
 ;; repeat-list-elements: n list -> list?
@@ -655,11 +642,11 @@
   (define-syntax-class (thing fs)
     #:attributes (norm)
     [pattern x #:when (empty? fs)
-             #:with norm #'x]
+      #:with norm #'x]
     [pattern (x ...)
-             #:declare x (thing (rest fs))
-             #:with f (first fs)
-             #:with norm #'(f x.norm ...)]
+      #:declare x (thing (rest fs))
+      #:with f (first fs)
+      #:with norm #'(f x.norm ...)]
     [pattern x #:with norm #'x])
   
   (syntax-parse stx
@@ -694,6 +681,8 @@
   (test-case "choose tests"
              (check-equal? (choose '(a b c d e) '(1/5 1/5 1/5 1/5 1/5) 0.5) 'c)))
 
+;; Zips the sublists of lsts together by creating a list of sublists combining
+;; the 1st elemnt, then the 2nd, 3rd, etc. 
 (define/contract (zip #:length (len max) . lsts)
   (->* () (#:length (or/c procedure? natural?)) #:rest (listof list?) (listof list?))
   (define (loop cnt (acc empty))
@@ -705,8 +694,41 @@
   (loop (cond
           [(procedure? len)
            (apply len (map length lsts))]
-            [else len])))
+          [else len])))
 
+;; Produces a zipped list that is the product of the combination of values of the
+;; list of values provided. For instance:
+;; (combinational-zip '(a b) '(1 2 3)) => '((a 1) (a 2) (a 3) (b 1) (b 2) (b 3)) 
+(define (combinational-zip . vlsts)
+  ;; Calculate the length of the lists to be zipped.
+  (define zlen (apply * (map length vlsts)))
+  ;; Iterates over each value list and creates an equivalent zip list.
+  (define-values (zlsts m)
+    (for/fold ([zlsts empty] [m zlen])
+              ([vlst vlsts]) 
+      (define vlen (length vlst))
+      (define q (quotient m vlen))
+      ;; We make a list concatenating each value of vlst the required number of times
+      ;; and then concatenate that list onto itself the number of times requird to produce
+      ;; a zlist of zlen.
+      (define zlst (apply append (make-list (quotient zlen m) (apply append (for/list ([v vlst]) (make-list q v))))))
+      ;; Add zlst to zlsts and compute a new m value reduced by a factor of vlen.
+      (values (cons zlst zlsts) (quotient m vlen))))
+  ;; Reverse the zlsts and zip them. 
+  (apply zip (reverse zlsts)))
+
+(module+ test
+  (test-case "combinational-zip tests"
+             (check-equal? (combinational-zip '(a b) '(1 2 3))
+                           '((a 1) (a 2) (a 3) (b 1) (b 2) (b 3)))))
+
+(module+ test
+  (test-case "zip tests"
+             (check-equal? (zip '(a b c) '(1 2 3))
+                           '((a 1) (b 2) (c 3)))))
+
+;; Returns a list of duplicates in lst. If fn is supplied, returns a list of all
+;; input values that produce duplicate results when fn is applied. 
 (define/contract (collect-duplicates lst (fn identity))
   (->* (list?) (procedure?) any)
   (define vs (map fn lst))
@@ -717,9 +739,137 @@
                          (cons l acc)
                          acc)))))
 
-#|
-(define (values-ref pos proc . vals)
-  (if (natural? pos)
-      (call-with-values (thunk (apply proc vals)) (compose (λ (lst) (list-ref lst pos)) list))
-      (call-with-values (thunk (apply proc vals)) (compose pos list))))
-|#
+(module+ test
+  (test-case "collect-duplicates tests"
+             (check-equal? (collect-duplicates '(a b c a d))
+                           '(a a))
+             #;(check-equal? (collect-duplicates #:fn odd? '(1 2 3 4 3 4))
+                             '(3 3))))
+
+;; Converts a list of pairs to an association list. 
+(define/contract (pairs->assoc pairs)
+  (-> (listof pair?) any)
+  (for/list ([key (remove-duplicates (map car pairs))])
+    (cons key (map (λ (v) ((if (list? v) cadr cdr) v)) (filter (λ (pair) (equal? (car pair) key)) pairs )))))
+
+(module+ test
+  (test-case "pairs->assoc tests"
+             (check-equal? (pairs->assoc '((a . 1) (b . 10) (a . 2) (b . 20)))
+                           '((a 1 2) (b 10 20)))
+             (check-equal? (pairs->assoc '((a 1) (b 10) (a 2) (b 20)))
+                           '((a 1 2) (b 10 20)))))
+
+;; Conversts an association list to a list of supairs.
+(define/contract (assoc->pairs #:output-dot-pairs? (output-dot-pairs? #t) assc)
+  (->* ((listof pair?)) (#:output-dot-pairs? boolean?) any)
+  (define acc (for/list ([key (remove-duplicates (map car assc))])
+                (cons key (apply append (map cdr (filter (λ (pair) (equal? (car pair) key)) assc ))))))
+  (for/fold ([pairs empty])
+            ([vs acc])
+    (append pairs
+            (cond
+              [(empty? (cdr vs)) (list (cons (car vs) null))]
+              [else (for/list ([v (if (list? vs) (cdr vs) (cons (cdr vs) '()))])
+                      ((if (false? output-dot-pairs?) list cons) (car vs) v))]))))
+
+(module+ test
+  (test-case "assoc->pairs tests"
+             (check-equal? (assoc->pairs '((a) (a 1 2) (b) (c 10 20 30)))
+                           '((a . 1) (a . 2) (b) (c . 10) (c . 20) (c . 30)))
+             (check-equal? (assoc->pairs '((a) (a 1 2) (b) (c 10 20 30)) #:output-dot-pairs? #f)
+                           '((a 1) (a 2) (b) (c 10) (c 20) (c 30)))))
+
+(define (list*? lst)
+  (define v (cdr lst))
+  (cond
+    [(empty? v) #f]
+    [(not (pair? v)) #t]
+    [else (list*? v)]))
+
+(module+ test
+  (test-case "list*? tests"
+             (check-true (list*? '(a b c . d)))
+             (check-false (list*? '(a b c d)))
+             (check-true (list*? '(a . (b . c))))))
+
+(define (list->list* lst)
+  (define rlst (reverse lst))
+  (for/fold ([lst* (car rlst)])
+            ([v (cdr rlst)])
+    (cons v lst*)))
+
+(define/contract (list*->list lst*)
+  (-> list*? any)
+  (define-values (lst rem)
+    (for/fold ([lst empty]
+               [lst* lst*])
+              ([n (in-naturals)])
+      (printf "n=~a lst=~a lst*=~a~%" n lst lst*)
+      #:break (not (pair? lst*))
+      (values (cons (car lst*) lst) (cdr lst*))))
+  (reverse (cons rem lst)))
+
+(define/contract (length* lst*)
+  (-> pair? any)
+  (define-values (cnt last)
+    (for/fold ([v 0]
+               [lst* lst*])
+              ([n (in-naturals)])
+      #:break (not (pair? lst*))
+      (values (add1 v) (cdr lst*)) ))
+  (values (if (empty? last) cnt (add1 cnt)) last))
+
+(module alt racket
+  (provide list->values values->list values-ref)
+  
+  (require (for-syntax racket/syntax
+                       syntax/parse
+                       racket/list)
+           racket/function)
+  (module+ test
+    (require rackunit
+             (for-syntax syntax/parse
+                         racket/list)
+             (submod "..")))
+
+  (define-syntax (values->list stx)
+    (syntax-case stx ()
+      [(_ (f args ...))
+       #'(call-with-values (thunk (f args ...)) list)]
+      [(_ f args ...)
+       #'(cond
+           [(procedure? f) (values->list (f args ...))]
+           [else (values->list (values f args ...))])]))
+
+  ;; list->values (f args) -> values?
+  ;; Conversts the values returned from the expression (f args ...) to a list.
+  (define-syntax (list->values stx)
+    (syntax-case stx (quote)
+      [(_ (quote arg) ...)
+       #'(values (quote arg) ...)]
+      [(_ (f args ...))
+       #'(apply values (f args ...))]
+      [(_ f args ...)
+       #'(cond
+           [(procedure? f) (list->values (f args ...))]
+           [else (list->values (list f args ...))])]))
+  
+  ;; values-ref: n (f args ...) -> any/c
+  ;;           : n f args ... -> any/c
+  ;; Returns the nth value of the expression (f args ...).
+  (define-syntax (values-ref stx)
+    (syntax-case stx ()
+      [(_ n (f args ...)) #'(list-ref (values->list (f args ...)) n)]
+      [(_ n f args ...)
+       #'(cond
+           [(procedure? f) (values-ref n (f args ...))]
+           [else (values-ref n (values f args ...))])]))
+
+  (module+ test
+    (test-case "values-ref tests"
+               (check-equal? (values-ref 0 values 1 2 3) 1)
+               (check-equal? (values-ref 0 1 2 3) 1)
+               (check-equal? (values-ref 0 (values 1 2 3)) 1)
+               (check-equal? (values-ref 0 '(values 1 2 3)) '(values 1 2 3))
+               (check-equal? (values-ref 0 '(values 1 2 3) '(+ 4 5 6)) 
+                             '(values 1 2 3)))))

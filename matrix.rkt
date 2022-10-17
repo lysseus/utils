@@ -162,9 +162,10 @@
 ;; ---------------------------------
 ;; import and implementation section
 
-(require (only-in utils/list
+(require (only-in (submod utils/list alt) 
                   values->list
-                  list->values
+                  list->values)
+         (only-in utils/list
                   sublist
                   group
                   list-set))
