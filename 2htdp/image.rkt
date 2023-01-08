@@ -1,8 +1,15 @@
 #lang racket
 
-;; Implements a set of image-related functions.
+;;;
+;;; IMAGE
+;;; Implements a set of image-related functions for 2htdp/image.
+;;;
 
-(provide 
+(provide
+ color-frame/pixels
+ images-max-dims
+ place-image/scale
+ place-image/fit
  (contract-out
   ; returns the center of the image
   [image-center
@@ -735,3 +742,67 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                                                               (image-height SQUARE)
                                                               M))
                                       '(#f 2 3)))))
+
+;; Place/aligns img1 on 1mg2 after scaling img to fit the x or y
+;; dimension (whichever is smaller) of img2. If img1 already fits
+;; into img2 it can be placed without expansion through use of the
+;; expand? keyword. 
+(define (place-image/scale #:expand? (expand? #f)
+                           #:x (x 0)
+                           #:y (y 0)
+                           #:x-place (x-place 'left)
+                           #:y-place (y-place 'top)
+                           img1 img2)
+  (define img1-w (image-width img1))
+  (define img1-h (image-height img1))
+  (define img2-w (image-width img2))
+  (define img2-h (image-height img2))
+  (define img
+    (cond
+      [(and (<= img1-w img2-w)
+            (<= img1-h img2-h)
+            (false? expand?)) img1]
+      [else (scale-image img2-w
+                         img2-h
+                         img1)]))
+  (place-image/align img
+                     x y x-place y-place
+                     img2))
+
+;; Places img1 on img2 after scaling image to fit the dimensions of img2.
+;; Scaling is uniform over both x and y dimensions, so img1 is scaled to
+;; fit the least of x or y for img2. 
+(define (place-image/fit img1 img2)
+  (place-image/scale img1 img2 #:expand? #t))
+
+
+;; Returns the maximum width and hieght for the images.
+;; Images can be in a list, vector, or hash-values. 
+(define/contract (images-max-dims #:width-min (width-min 0)
+                                  #:height-min (height-min 0)
+                                  images)
+  (->* ((or/c (listof image?) (vectorof image?) hash?))
+       (#:width-min natural? #:height-min natural?) any)
+  (define images-list
+    (cond
+      [(or (list? images) (vector? images)) images]
+      [else (hash-values images)]))
+  (for/fold ([wacc width-min] [hacc height-min])
+            ([img images-list])
+    (define w (image-width img))
+    (define h (image-height img))
+    (values (if (> w wacc) w wacc)
+            (if (> h hacc) h hacc))))
+
+;; Wraps the image in a rectangular frame of n pixel thickness.
+(define/contract (color-frame/pixels clr img (n 1))
+  (->* ((or/c pen? image-color?) image?) (natural?) any)
+  (cond
+    [(zero? n) img]
+    [else (color-frame/pixels clr
+                              (overlay img
+                                       (rectangle (add1 (image-width img))
+                                                  (add1 (image-height img))
+                                                  'outline clr))
+                              (sub1 n))]))
+

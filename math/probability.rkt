@@ -6,7 +6,9 @@
 
 (provide ! P C
          sample-space
-         conditional-probability)
+         conditional-probability
+         k-permutations
+         k-combinations)
 
 (module+ test (require rackunit
                        (submod "..")))
@@ -52,3 +54,48 @@
              (check-equal? (conditional-probability (sample-space (range 1 7) 2)
                                                     (λ (vs) (= (+ (first vs) (second vs)) 7)))
                            1/6)))
+
+(define (k-permutations #:distinct? (distinct? #t) vals (k (length vals)))
+  (define len (length vals))
+  (reverse (for/fold ([acc empty])
+                     ([r (range (expt len k))])
+             (define ans (for/list ([c (reverse (range k))])
+                           (modulo (quotient r (expt len c)) len)))
+             (cond
+               [(false? distinct?)
+                (cons (map (λ (idx) (list-ref vals idx)) ans) acc)]
+               [(= k (length (remove-duplicates ans)))
+                (cons (map (λ (idx) (list-ref vals idx)) ans) acc)]
+               [else acc]))))
+
+(define (k-combinations #:distinct? (distinct? #t) vals (k (length vals)))
+  (define ans (k-permutations vals k #:distinct? distinct?))
+  (define-values (vs ss)
+    (for/fold ([vs empty]
+               [acc empty])
+              ([v ans])
+      (define s (list->set v))
+      (if (member s acc)
+          (values vs acc)
+          (values (cons v vs) (cons s acc)))))
+  (reverse vs))
+
+(module+ test
+  (test-case "k-permutations tests"
+             (check-equal? (k-permutations '(a b c) 2)
+                           '((a b) (a c) (b a) (b c) (c a) (c b)))
+             (check-equal? (k-permutations '(a b c) 2 #:distinct? #f)
+                           '((a a) (a b) (a c) (b a) (b b) (b c) (c a) (c b) (c c)))
+             (check-equal? (k-permutations '(a b b) 2 #:distinct? #f)
+                           '((a a) (a b) (a b) (b a) (b b) (b b) (b a) (b b) (b b)))
+             (check-equal? (k-permutations '(a b b) 2 #:distinct? #t)
+                           '((a b) (a b) (b a) (b b) (b a) (b b))))
+  (test-case "k-combinations tests"
+             (check-equal? (k-combinations '(a b c) 2)
+                           '((a b) (a c) (b c)))
+             (check-equal? (k-combinations '(a b c) 2 #:distinct? #f)
+                           '((a a) (a b) (a c) (b b) (b c) (c c)))
+             (check-equal? (k-combinations '(a b b) 2 #:distinct? #f)
+                           '((a a) (a b) (b b)))
+             (check-equal? (k-combinations '(a b b) 2 #:distinct? #t)
+                           '((a b) (b b)))))

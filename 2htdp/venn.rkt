@@ -1,7 +1,7 @@
 #lang racket
 
 (require 2htdp/image
-         "text-wrap.rkt˘")
+         "text.rkt")
 
 (define MT (empty-scene 600 500 'blue))
 
