@@ -51,14 +51,14 @@
                (car ans)])])]))
 
 (define (find-task tasks curr event)
-  (for/last ([task tasks]
-             #:when (and (eq? (Task-curr task) curr)
-                         (cond
-                           [(string? (Task-event task))
-                            (string=? (Task-event task) event)]
-                           [(procedure? (Task-event task))
-                            ((Task-event task) event)]
-                           [else #t])))
+  (for/first ([task tasks]
+              #:when (and (eq? (Task-curr task) curr)
+                          (cond
+                            [(string? (Task-event task))                            
+                             (string=? (Task-event task) event)]
+                            [(procedure? (Task-event task))
+                             ((Task-event task) event)]
+                            [else #t])))
     task))
 
 ;; state-handler does the processing of a task for
