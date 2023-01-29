@@ -10,6 +10,7 @@
  images-max-dims
  place-image/scale
  place-image/fit
+ overlay/fit
  (contract-out
   ; returns the center of the image
   [image-center
@@ -73,11 +74,9 @@
                 (r1 integer?)
                 (r2 integer?)))]
   [scale-image
-   (->i ([width real?]
-         [height real?]
-         [img image?])
-        ()
-        (result image?))]
+   (->* (natural? natural? image?)
+        (#:expand? boolean?)
+        image?)]
   [transparent?
    (->i ([lst (non-empty-listof color?)])
         ()
@@ -256,13 +255,27 @@
 
 ;; scale-image: width height image -> image
 ;; scales the image to fit the framing rectangle's width and height.
-(define (scale-image width
-                     height
-                     image)
-  (overlay (scale (min (/ width (image-width image))
-                       (/ height (image-height image)))
-                  image)
-           (rectangle width height 'outline 'transparent)))
+;; if expand? is false and img already fits within the bounding frame,
+;; no scaling is peformed.
+(define (scale-image #:expand? (expand? #t) w h img)  
+  (define img-w (image-width img))
+  (define img-h (image-height img))
+  (cond
+    [(or (zero? img-w) (zero? img-h)) img]
+    [else
+     (define Δw (- img-w w))
+     (define Δh (- img-h h))  
+     (define fw (/ w img-w))
+     (define fh (/ h img-h))
+     (define f (cond
+                 ;; Already in frame, no scale change.
+                 [(and (not expand?)
+                       (not (positive? Δw))
+                       (not (positive? Δh)))               
+                  1]
+                 ;; fit to frame
+                 [else (min fw fh)]))  
+     (scale f img)]))
 
 ;; transparent?: lst -> boolean
 ;; predicate reutrns true if color-list is completely transparent.
@@ -751,7 +764,7 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                            #:x (x 0)
                            #:y (y 0)
                            #:x-place (x-place 'left)
-                           #:y-place (y-place 'top)
+                           #:y-place (y-place 'top)            
                            img1 img2)
   (define img1-w (image-width img1))
   (define img1-h (image-height img1))
@@ -769,11 +782,39 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                      x y x-place y-place
                      img2))
 
+;; Overlays img with img1 after scaling it to fit.
+;; If pad is supplied then img1 is scaled to fit the
+;; frame padding.
+(define (overlay/fit #:w-pad (w-pad 0)
+                     #:expand? (expand? #t)
+                     #:left-pad (left-pad w-pad)
+                     #:right-pad (right-pad w-pad)
+                     #:h-pad (h-pad 0)
+                     #:top-pad (top-pad h-pad)
+                     #:bottom-pad (bottom-pad h-pad)
+                     img1 img2)
+  (define (pad img left-pad right-pad top-pad botom-pad)
+    (define left-frame (rectangle left-pad 1 'solid 'transparent))
+    (define right-frame (rectangle right-pad 1 'solid 'transparent))
+    (define top-frame (rectangle 1 top-pad 'solid 'transparent))
+    (define bottom-frame (rectangle 1 bottom-pad 'solid 'transparent))
+    (above
+     top-frame
+     (beside left-frame img right-frame)
+     bottom-frame))
+  (overlay (pad (scale-image #:expand? expand?
+                             (- (image-width img2) left-pad right-pad)
+                             (- (image-height img2) top-pad bottom-pad)
+                             img1)
+                left-pad right-pad top-pad bottom-pad)
+           img2))
+
 ;; Places img1 on img2 after scaling image to fit the dimensions of img2.
 ;; Scaling is uniform over both x and y dimensions, so img1 is scaled to
 ;; fit the least of x or y for img2. 
 (define (place-image/fit img1 img2)
-  (place-image/scale img1 img2 #:expand? #t))
+  (place-image/scale img1 img2
+                     #:expand? #t))
 
 
 ;; Returns the maximum width and hieght for the images.
