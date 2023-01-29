@@ -17,6 +17,7 @@
          successful
          failed
          add-to-pending
+         #;λadd-to-pending
          stack-empty?
          peek
          size
@@ -47,10 +48,13 @@
 (define-syntax processing-cmd
   (λ (stx) (syntax-parse stx [processing-cmd:id #'(current-processing-cmd)])))
 
-(define-syntax (add-to-pending stx)
+#;(define-syntax (add-to-pending stx)
   (syntax-parse stx
     [(_ tries proc arg ...)
      #'(push! pending (cmd (add1 (size pending)) tries proc (list arg ...)))]))
+
+(define (add-to-pending tries proc . args)
+  (push! pending (cmd (add1 (size pending)) tries proc args)))
 
 
 (define (initialize-cmd-tries)

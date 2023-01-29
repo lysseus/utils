@@ -11,7 +11,8 @@
          stack-empty?
          peek
          pop!
-         size)
+         size
+         clear!)
 
 (require racket/generic
          racket/undefined)
@@ -24,7 +25,8 @@
   [stack-empty? Stack]
   [peek Stack]
   [pop! Stack]                
-  [size Stack])
+  [size Stack]
+  [clear! Stack])
 
 
 (struct Fifo  ([data #:auto])
@@ -48,7 +50,10 @@
         item]))
    (define (size Stack)
      (match Stack
-       [(Fifo data) (length data)]))])
+       [(Fifo data) (length data)]))
+   (define (clear! Stack)
+     (match Stack
+       [(Fifo data) (unless (empty? data) (set-Fifo-data! Stack empty))]))])
 
 (struct Lifo  ([data #:auto])
   #:auto-value '()
@@ -71,7 +76,10 @@
         item]))
    (define (size Stack)
      (match Stack
-       [(Lifo data) (length data)]))])
+       [(Lifo data) (length data)]))
+   (define (clear! Stack)
+     (match Stack
+       [(Lifo data) (unless (empty? data) (set-Lifo-data! Stack empty))]))])
 
 
 
@@ -87,6 +95,9 @@
              (check-equal? (pop! fifo) 'c)
              (check-equal? (pop! fifo) 'b)
              (check-equal? (pop! fifo) 'a)
+             (check-equal? (size fifo) 0)
+             (push! fifo 'd)
+             (clear! fifo)
              (check-equal? (size fifo) 0))
   (test-case "Lifo tests"
              (define lifo (Lifo))
@@ -97,4 +108,7 @@
              (check-equal? (peek lifo) 'a)
              (check-equal? (pop! lifo) 'a)
              (check-equal? (pop! lifo) 'b)
-             (check-equal? (pop! lifo) 'c)))
+             (check-equal? (pop! lifo) 'c)
+             (push! lifo 'd)
+             (clear! lifo)
+             (check-equal? (size lifo) 0)))
