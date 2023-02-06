@@ -6,6 +6,7 @@
 ;;;
 
 (provide
+ trim
  list*?
  list->list*
  list*->list
@@ -873,3 +874,28 @@
                (check-equal? (values-ref 0 '(values 1 2 3)) '(values 1 2 3))
                (check-equal? (values-ref 0 '(values 1 2 3) '(+ 4 5 6)) 
                              '(values 1 2 3)))))
+
+;; Trims val from either the first or last of lst. If repeat? is true
+;; this process is repeated until no more matches are found.
+(define/contract (trim #:left? (left? #t)
+                       #:right? (right? #t)
+                       #:repeat? (repeat? #t)
+                       #:is-equal? (is-equal? equal?)
+                       lst val)
+  (->* (list? any/c)
+       (#:right? boolean? #:left? boolean? #:repeat? boolean? #:is-equal? any/c)
+       any)
+  (define l? (and left? (is-equal? (car lst) val)))
+  (define r? (and right? (is-equal? (last lst) val)))        
+  (cond
+    [(and (false? l?) (false? r?)) lst]
+    [(false? repeat?) (drop (drop-right lst (if r? 1 0)) (if l? 1 0))]
+    [else (trim (drop (drop-right lst (if r? 1 0)) (if l? 1 0)) val
+                #:left? l?
+                #:right? r?
+                #:repeat? repeat?)]))
+
+(module+ test
+  (test-case "trim tests"
+             (check-equal? (trim '(a a a b c d a a) 'a)
+                           '(b c d))))
