@@ -7,6 +7,7 @@
 
 (provide
  color-frame/pixels
+ image-pad
  images-max-dims
  place-image/scale
  place-image/fit
@@ -834,6 +835,15 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
     (define h (image-height img))
     (values (if (> w wacc) w wacc)
             (if (> h hacc) h hacc))))
+
+
+;; Wrap the image in a rectangular transparent padding
+;; of w x h pixels.
+(define (image-pad img w (h w) (clr 'transparent))
+  (overlay img
+           (rectangle (+ (* 2 w) (image-width img))
+                      (+ (* 2 h) (image-height img))
+                      'solid clr)))
 
 ;; Wraps the image in a rectangular frame of n pixel thickness.
 (define/contract (color-frame/pixels clr img (n 1))
