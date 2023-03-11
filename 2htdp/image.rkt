@@ -6,6 +6,7 @@
 ;;;
 
 (provide
+ rounded-rectangle
  color-frame/pixels
  image-pad
  images-max-dims
@@ -857,3 +858,48 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                                                   'outline clr))
                               (sub1 n))]))
 
+;; Draws a rounded-rectangle of width w and height h. The rounding r%
+;; rerpresents a percentage between 0 and 1 of a readial length 1/2 the
+;; minimum of the width and height of the rectangle. An r% of 0 produces
+;; a normal rectangle of dimension width and length. An r% of 1 produces
+;; a "stadium" in wich each end ot the rectangle is a semicircle of readius
+;; width or height. When width = height produces a square for r% = 0 and a
+;; circle for r% = 1.
+(define/contract (rounded-rectangle w h r% m c)
+  (-> (and/c real? (not/c negative?))
+      (and/c real? (not/c negative?))
+      (and/c real? (between/c 0 1))
+      mode? image-color? any)
+  (define r (round (* r% (quotient (min w h) 2))))  
+  (define corner (crop 0 0 r r (circle r m c)))
+  (define wl (- w (* 2 r)))
+  (define wline (cond
+                  [(zero? wl) empty-image]
+                  [(eq? m 'outline) (line (sub1 wl) 0 c)]
+                  [else (rectangle wl r 'solid c)]))
+  (define top (beside/align "top" corner wline (flip-horizontal corner)))  
+  (define bottom (flip-vertical top))
+  (define mh (cond
+               [(zero? (- h (* 2 r))) 0]
+               [else (- h (* 2 r)
+                        (if (eq? m 'outline) 2 0))]))  
+  (define mline (cond
+                  [(zero? mh) empty-image]
+                  [else (line 0 (sub1 mh) c)]))
+  (define middle (cond
+                   [(zero? mh)empty-image]
+                   [else (beside mline
+                                 (rectangle (- w 2) mh 'solid
+                                            (if (eq? m 'outline)
+                                                'transparent
+                                                c))
+                                 mline)]))  
+  (define tmp (above top middle bottom))
+  (define img
+    (cond
+      [(eq? m 'outline)
+       (define img (overlay (overlay tmp (flip-horizontal tmp)) (flip-vertical tmp)))
+       (scale/xy (/ w (image-width img)) (/ h (image-height img))
+                 img)]
+      [else tmp]))  
+  img)
