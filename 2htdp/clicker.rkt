@@ -10,8 +10,9 @@
                          (font-size (or/c #f  (and/c integer? (between/c 1 255))))
                          (font-color image-color?)
                          (bg-color (or/c pen? image-color?))
+                         (bo-color (or/c #f image-color?))
                          (padding (or/c #f nonnegative-integer?)))]
-          [struct button ((name (or/c integer? symbol? string?))
+          [struct button ((name (or/c natural? symbol? string?))
                           (active? boolean?)
                           (label (or/c #f label?))
                           (up-action procedure?))]
@@ -90,11 +91,11 @@
 ;; draw-border: image -> image?
 ;; Draws a 2-pixel width frame the same dimensions of
 ;; image and overlays it. 
-(define/contract (draw-border image) (-> image? image?)
+(define/contract (draw-border image clr) (-> image? image-color? image?)
   (define w (image-width image))
   (define h (image-height image))
-  (overlay (rectangle (sub1 w) (sub1 h) 'outline 'black)
-           (rectangle w h 'outline 'black)
+  (overlay (rectangle (sub1 w) (sub1 h) 'outline clr)
+           (rectangle w h 'outline clr)
            image))
 
 ;;; labels specify:
@@ -109,6 +110,7 @@
                font-size
                font-color
                bg-color
+               bo-color
                padding
                )
   #:mutable #:transparent)
@@ -208,7 +210,7 @@
             (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
        [else lbl-img])
      bg))
-  (if (label-border? lbl) (draw-border lbl/bg-img) lbl/bg-img))
+  (if (label-border? lbl) (draw-border lbl/bg-img (label-bo-color lbl)) lbl/bg-img))
 
 ;; get-container-label-height: c -> integer?
 ;; Returns the height of the container-label. When unspecified this is
@@ -263,6 +265,13 @@
       [(and clbl (true? (label-bg-color clbl)))
        (label-bg-color clbl)]
       [else 'transparent]))
+  (define bo-color
+    (cond
+      [(and blbl (true? (label-bo-color blbl)))
+       (label-bo-color blbl)]
+      [(and clbl (true? (label-bo-color clbl)))
+       (label-bo-color clbl)]
+      [else 'transparent]))
   (define padding
     (cond
       [(and blbl (true? (label-padding blbl)))
@@ -275,6 +284,7 @@
          font-size
          font-color
          bg-color
+         bo-color
          padding))
 
 (define/contract (draw-button ctn btn)
@@ -309,10 +319,11 @@
      (define ctn-img
        (above
         clbl-img
-        ((if (container-buttons-border? ctn) draw-border identity)
+        ((if (container-buttons-border? ctn) draw-border (λ (img clr) img))
          (if (> (length images) 1)
              (apply (if (container-buttons-vertical? ctn) above beside) images)
-             (first images)))))
+             (first images))
+         (if (container-buttons-border? ctn) (label-bo-color clbl) 'transparent))))
      (define ctn-img/bg
        (overlay
       ctn-img
@@ -321,7 +332,7 @@
                  'solid
                  (container-bg-color ctn))))
      (if (container-border? ctn)
-         (draw-border ctn-img/bg)
+         (draw-border ctn-img/bg (label-bo-color clbl))
          ctn-img/bg)]))
 
 ;; place-container: ctn img -> image?
@@ -516,3 +527,153 @@
            (begin
              (set-button-active?! btn #f)
              (list ctn btn))))
+
+#|
+(define MT-WIDTH  680)
+(define MT-HEIGHT 600)
+(define MT (empty-scene MT-WIDTH MT-HEIGHT 'black))
+(define btn-w 100)
+(define btn-h 100)
+(define move identity)
+
+(define CONTAINERS
+  (list   
+   (container 0
+              #t
+              0
+              (* 0 btn-h)
+              'transparent
+              #f
+              #f
+              #f
+              #f
+              #f
+              0
+              0
+              btn-w
+              btn-h
+              #f
+              #f
+              #f
+              (list
+               (button 0
+                       #t
+                       (label "1" #t #f 'white 'black 'white 3)
+                       move)
+               #;(button 1
+                       #t
+                       (label "2" #t #f 'white 'black 'white 3)
+                       move)
+               #;(button 2
+                       #t
+                       (label "3" #t #f 'white 'black 'white 3)
+                       move)
+               #;(button 3
+                       #t
+                       (label "4" #t #f 'white 'black 'white 3)
+                       move)))
+   #;(container 1
+              #t
+              0
+              (* 1 btn-h)
+              'transparent
+              #f
+              #f
+              #f
+              #f
+              #f
+              0
+              0
+              btn-w
+              btn-h
+              #f
+              #f
+              #f
+              (list
+               (button 0
+                       #t
+                       (label "5" #t #f 'white 'black 'white 3)
+                       move)
+               (button 1
+                       #t
+                       (label "6" #t #f 'white 'black 'white 3)
+                       move)
+               (button 2
+                       #t
+                       (label "7" #t #f 'white 'black 'white 3)
+                       move)
+               (button 3
+                       #t
+                       (label "8" #t #f 'white 'black 'white 3)
+                       move)));
+   #;(container 2
+              #t
+              0
+              (* 2 btn-h)
+              'transparent
+              #f
+              #f
+              #f
+              #f
+              #f
+              0
+              0
+              btn-w
+              btn-h
+              #f
+              #f
+              #f
+              (list
+               (button 0
+                       #t
+                       (label "9" #t #f 'white 'black 'white 3)
+                       move)
+               (button 1
+                       #t
+                       (label "10" #t #f 'white 'black 'white 3)
+                       move)
+               (button 2
+                       #t
+                       (label "11" #t #f 'white 'black 'white 3)
+                       move)
+               (button 3
+                       #t
+                       (label "12" #t #f 'white 'black 'white 3)
+                       move)))
+   #;(container 3
+              #t
+              0
+              (* 3 btn-h)
+              'transparent
+              #f
+              #f
+              #f
+              #f
+              #f
+              0
+              0
+              btn-w
+              btn-h
+              #f
+              #f
+              #f
+              (list               
+               (button 0
+                       #t
+                       (label "13" #t #f 'white 'black 'white 3)
+                       move)
+               (button 1
+                       #t
+                       (label "14" #t #f 'white 'black 'white 3)
+                       move)
+               (button 2
+                       #t
+                       (label "15" #t #f 'white 'black 'white 3)
+                       move)
+               (button 0
+                       #t
+                       (label " " #t #f 'transparent 'white 'white 3)
+                       move)))))
+
+  (place-containers CONTAINERS
+                    MT)\|#

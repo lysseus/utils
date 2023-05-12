@@ -8,6 +8,7 @@
 (provide
  rounded-rectangle
  color-frame/pixels
+ color-frame/group
  image-pad
  images-max-dims
  place-image/scale
@@ -840,7 +841,8 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
 
 ;; Wrap the image in a rectangular transparent padding
 ;; of w x h pixels.
-(define (image-pad img w (h w) (clr 'transparent))
+(define/contract (image-pad img (w 0) (h w) (clr 'transparent))
+  (->* (image?) (natural? natural? image-color?) any)
   (overlay img
            (rectangle (+ (* 2 w) (image-width img))
                       (+ (* 2 h) (image-height img))
@@ -857,6 +859,32 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                                                   (add1 (image-height img))
                                                   'outline clr))
                               (sub1 n))]))
+
+;; ;; Groups a set of images either above or beside with specified padding, slignment, and framing.
+(define/contract (color-frame/group #:above? (above? #t)
+                                    #:pad-w (pad-w 4)
+                                    #:pad-h (pad-h pad-w)
+                                    #:frame-color (frame-color 'white)
+                                    #:frame-pixels (frame-pixels 1)
+                                    #:x-place (x-place 'left)
+                                    images)
+  (->* ((listof image?))
+       (#:above? boolean?
+        #:pad-w natural?
+        #:pad-h natural?
+        #:frame-color image-color? #:frame-pixels natural?
+        #:x-place x-place?)
+       any)
+  (define padded-images (cond
+                          [(and (zero? pad-w) (zero? pad-h)) images]
+                          [else (for/list ([image images]) (image-pad image pad-w pad-h))]))
+  (define-values (w h) (images-max-dims padded-images))
+  (define tframe (rectangle w h 'solid 'transparent))  
+  (define frames (for/list ([image padded-images])
+                   (color-frame/pixels frame-color
+                                       (overlay/align x-place 'top image tframe)
+                                       frame-pixels)))
+  (apply (if above? above beside) frames))
 
 ;; Draws a rounded-rectangle of width w and height h. The rounding r%
 ;; rerpresents a percentage between 0 and 1 of a readial length 1/2 the

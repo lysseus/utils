@@ -4,7 +4,20 @@
 ;;; STRING
 ;;;
 
-(provide string->expr string->exprs)
+(provide string-drop
+         string-drop-right
+         string-take
+         string-take-right
+         string->expr string->exprs)
+
+(define/contract (string-drop str pos) (-> string?  natural? any)
+  (list->string (drop (string->list str) pos)))
+(define/contract (string-drop-right str pos) (-> string?  natural? any)
+  (list->string (drop-right (string->list str) pos)))
+(define/contract (string-take str pos) (-> string?  natural? any)
+  (list->string (take (string->list str) pos)))
+(define/contract (string-take-right str pos) (-> string?  natural? any)
+  (list->string (take-right (string->list str) pos)))
 
 (module+ test (require rackunit
                        (submod "..")))
