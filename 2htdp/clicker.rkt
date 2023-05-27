@@ -1,22 +1,24 @@
 #lang racket
 
 ;;;
-;;; Clicker: A basic library providing label, button and container widgets for 2htdp/image.
+;;; CLICKER
+;;;
+;;; A basic library providing label, button and container widgets for 2htdp/image.
 ;;;
 
 (provide (contract-out
-          [struct label ((name (or/c string? image?))
+          [struct label ((name (or/c number? symbol? string? char? image?))
                          (border? boolean?)
                          (font-size (or/c #f  (and/c integer? (between/c 1 255))))
                          (font-color image-color?)
                          (bg-color (or/c pen? image-color?))
-                         (bo-color (or/c #f image-color?))
-                         (padding (or/c #f nonnegative-integer?)))]
-          [struct button ((name (or/c natural? symbol? string?))
+                         (bo-color (or/c #f pen? image-color?))
+                         (padding (or/c #f natural?)))]
+          [struct button ((name (or/c natural? symbol? string? char?))
                           (active? boolean?)
                           (label (or/c #f label?))
                           (up-action procedure?))]
-          [struct container ((name (or/c integer? symbol? string?))
+          [struct container ((name (or/c natural? symbol? string? char?))
                              (active? boolean?)
                              (x-offset integer?)
                              (y-offset integer?)
@@ -44,11 +46,44 @@
          find-button
          activate-button
          deactivate-button
-         undefined)
+         undefined
+         make-label
+         current-label-name
+         current-label-border?
+         current-label-font-size
+         current-label-font-color
+         current-label-bg-color
+         current-label-bo-color
+         current-label-padding
+         make-button
+         current-button-name
+         current-button-active?
+         current-button-label
+         current-button-up-action
+         make-container
+         current-container-name
+         current-container-active?
+         current-container-x-offset
+         current-container-y-offset
+         current-container-bg-color
+         current-container-border?
+         current-container-label
+         current-container-label-height
+         current-container-buttons-vertical?
+         current-container-buttons-border?
+         current-container-buttons-x-padding
+         current-container-buttons-y-padding
+         current-container-button-width
+         current-container-button-height
+         current-container-button-label-defaults
+         current-container-activate
+         current-container-deactivate
+         current-container-buttons)
 
 (require 2htdp/image
          anaphoric
-         racket/undefined)
+         racket/undefined
+         utils/defstruct)
 
 
 (define/contract (pen-or-color? v)
@@ -105,25 +140,22 @@
 ;;; - font-color (optional)
 ;;; - bg-color (optional)
 ;;; - label-padding (optional)()
-(struct label (name
-               border?
-               font-size
-               font-color
-               bg-color
-               bo-color
-               padding
-               )
-  #:mutable #:transparent)
+(defstruct label ((name "" (or/c number? symbol? string? char? image?))
+                  (border? #f boolean?)
+                  (font-size #f (or/c #f  (and/c integer? (between/c 1 255))))
+                  (font-color 'transparent image-color?)
+                  (bg-color 'transparent (or/c pen? image-color?))
+                  (bo-color 'transparent (or/c #f pen? image-color?))
+                  (padding #f (or/c #f natural?))))
 
 ;; Buttons specify:
 ;; - label (optional)
 ;; - active?
 ;; - up-action
-(struct button (name
-                active?
-                label
-                up-action
-                ) #:mutable #:transparent)
+(defstruct button ((name "" (or/c natural? symbol? string? char?))
+                   (active? #t boolean?)
+                   (label #f (or/c #f label?))
+                   (up-action (λ args (void)) procedure?)))
 
 ;;; Continers specify:
 ;;; - label (optional)
@@ -136,26 +168,24 @@
 ;;; - container x and y padding (optional) <= around buttons
 ;;; - button-label-defaults (optional, must have label-name #f)
 ;;; - button-list
-(struct container (name
-                   active?
-                   x-offset
-                   y-offset
-                   bg-color
-                   border?
-                   label
-                   label-height
-                   buttons-vertical?
-                   buttons-border?
-                   buttons-x-padding
-                   buttons-y-padding
-                   button-width
-                   button-height
-                   button-label-defaults
-                   activate
-                   deactivate
-                   buttons
-                   )
-  #:mutable #:transparent)
+(defstruct container ((name "" (or/c natural? symbol? string? char?))
+                      (active? #t boolean?)
+                      (x-offset 0 integer?)
+                      (y-offset 0 integer?)
+                      (bg-color 'transparent (or/c pen? image-color?))
+                      (border? #f boolean?)
+                      (label #f (or/c #f label?))
+                      (label-height #f (or/c #f positive-integer?))
+                      (buttons-vertical? #f boolean?)
+                      (buttons-border? #f boolean?)
+                      (buttons-x-padding 0 nonnegative-integer?)
+                      (buttons-y-padding 0 nonnegative-integer?)
+                      (button-width 0 positive-integer?)
+                      (button-height 0 positive-integer?)
+                      (button-label-defaults #f (or/c #f label?))
+                      (activate #f (or/c #f procedure?))
+                      (deactivate #f (or/c #f procedure?))
+                      (buttons (list (make-button)) (non-empty-listof button?))))
 
 (define/contract (draw-label l) (-> label? image?)
   (cond
@@ -176,17 +206,19 @@
 
     ;; The name is a string with a valid font-size and font-color.
     ;; We convert it to text.
-    [(and (string? (label-name l))
+    [(and (or (string? (label-name l)) (symbol? (label-name l))
+              (number? (label-name l)) (char? (label-name l)))
           (positive-integer? (label-font-size l))
           (pen-or-color? (label-font-color l)))
-     (text (label-name l) (label-font-size l) (label-font-color l))]
+     (text (~a (label-name l)) (label-font-size l) (label-font-color l))]
     
     ;; The name is a string with valid font-color. We draw it with a default
     ;; font-size which will be scaled to fit the bg later. 
-    [(and (string? (label-name l))
+    [(and (or (string? (label-name l)) (symbol? (label-name l))
+              (number? (label-name l)) (char? (label-name l)))
           (false? (label-font-size l))
           (pen-or-color? (label-font-color l)))
-     (text (label-name l) 10 (label-font-color l))]
+     (text (~a (label-name l)) 10 (label-font-color l))]
     
     ;; Return an empty image
     [else empty-image]))
@@ -204,10 +236,10 @@
     (overlay
      (cond
        [(false? (label-font-size lbl))
-         (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
+        (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
        [(or (> (+ (* 2 (label-padding lbl)) (image-width lbl-img)) (image-width bg))
             (> (+ (* 2 (label-padding lbl)) (image-height lbl-img)) (image-height bg)))
-            (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
+        (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
        [else lbl-img])
      bg))
   (if (label-border? lbl) (draw-border lbl/bg-img (label-bo-color lbl)) lbl/bg-img))
@@ -290,10 +322,10 @@
 (define/contract (draw-button ctn btn)
   (-> container? button? image?)
   (define btn-img (draw-label/bg (container-button-width ctn)
-                             (container-button-height ctn)
-                             (resolve-button-label (button-label btn)
-                                                   (container-button-label-defaults
-                                                    ctn))))
+                                 (container-button-height ctn)
+                                 (resolve-button-label (button-label btn)
+                                                       (container-button-label-defaults
+                                                        ctn))))
   (define bg (rectangle (+ (container-button-width ctn)
                            (* 2 (container-buttons-x-padding ctn)))
                         (+ (container-button-height ctn)
@@ -326,11 +358,11 @@
          (if (container-buttons-border? ctn) (label-bo-color clbl) 'transparent))))
      (define ctn-img/bg
        (overlay
-      ctn-img
-      (rectangle (image-width ctn-img)
-                 (image-height ctn-img)
-                 'solid
-                 (container-bg-color ctn))))
+        ctn-img
+        (rectangle (image-width ctn-img)
+                   (image-height ctn-img)
+                   'solid
+                   (container-bg-color ctn))))
      (if (container-border? ctn)
          (draw-border ctn-img/bg (label-bo-color clbl))
          ctn-img/bg)]))
@@ -401,17 +433,17 @@
       (define h (container-button-height c))
       (define buttons (filter active? (container-buttons c)))
       (result
-        (for/first ([n (range (length buttons))]
-                  [b buttons]
-                  #:when (in-range? x y v? n xo xp w yo yp h))
-                  (list c b m n)))))
+       (for/first ([n (range (length buttons))]
+                   [b buttons]
+                   #:when (in-range? x y v? n xo xp w yo yp h))
+         (list c b m n)))))
   (define info (result))
   (cond
-   [(false? info) #f]
-   [else
-    (define ctn (first info))
-    (define btn (second info))
-    (list ctn btn)]))
+    [(false? info) #f]
+    [else
+     (define ctn (first info))
+     (define btn (second info))
+     (list ctn btn)]))
 
 ;; process-containers: containers ws x y evt ->|
 ;; Processes active container actions. 
@@ -422,12 +454,12 @@
       any)
   (define info (select-container/button containers ws x y evt))
   (cond
-   [(false? info) #f]
-   [else
-    (define ctn (first info))
-    (define btn (second info))
-    (define result ((button-up-action btn) ctn btn ws x y))
-    (list ctn btn result)]))
+    [(false? info) #f]
+    [else
+     (define ctn (first info))
+     (define btn (second info))
+     (define result ((button-up-action btn) ctn btn ws x y))
+     (list ctn btn result)]))
 
 
 ;;;======================================================================================
@@ -485,7 +517,7 @@
 (define/contract (activate-container ctn-name ws containers)
   (-> (or/c symbol? integer?) any/c (listof container?) any)
   (and-let [ctn (set-accessor! container-name
-                             ctn-name set-container-active?! #t containers)]
+                               ctn-name set-container-active?! #t containers)]
            [activate (container-activate ctn)]
            (activate ctn ws)))
 
@@ -527,153 +559,3 @@
            (begin
              (set-button-active?! btn #f)
              (list ctn btn))))
-
-#|
-(define MT-WIDTH  680)
-(define MT-HEIGHT 600)
-(define MT (empty-scene MT-WIDTH MT-HEIGHT 'black))
-(define btn-w 100)
-(define btn-h 100)
-(define move identity)
-
-(define CONTAINERS
-  (list   
-   (container 0
-              #t
-              0
-              (* 0 btn-h)
-              'transparent
-              #f
-              #f
-              #f
-              #f
-              #f
-              0
-              0
-              btn-w
-              btn-h
-              #f
-              #f
-              #f
-              (list
-               (button 0
-                       #t
-                       (label "1" #t #f 'white 'black 'white 3)
-                       move)
-               #;(button 1
-                       #t
-                       (label "2" #t #f 'white 'black 'white 3)
-                       move)
-               #;(button 2
-                       #t
-                       (label "3" #t #f 'white 'black 'white 3)
-                       move)
-               #;(button 3
-                       #t
-                       (label "4" #t #f 'white 'black 'white 3)
-                       move)))
-   #;(container 1
-              #t
-              0
-              (* 1 btn-h)
-              'transparent
-              #f
-              #f
-              #f
-              #f
-              #f
-              0
-              0
-              btn-w
-              btn-h
-              #f
-              #f
-              #f
-              (list
-               (button 0
-                       #t
-                       (label "5" #t #f 'white 'black 'white 3)
-                       move)
-               (button 1
-                       #t
-                       (label "6" #t #f 'white 'black 'white 3)
-                       move)
-               (button 2
-                       #t
-                       (label "7" #t #f 'white 'black 'white 3)
-                       move)
-               (button 3
-                       #t
-                       (label "8" #t #f 'white 'black 'white 3)
-                       move)));
-   #;(container 2
-              #t
-              0
-              (* 2 btn-h)
-              'transparent
-              #f
-              #f
-              #f
-              #f
-              #f
-              0
-              0
-              btn-w
-              btn-h
-              #f
-              #f
-              #f
-              (list
-               (button 0
-                       #t
-                       (label "9" #t #f 'white 'black 'white 3)
-                       move)
-               (button 1
-                       #t
-                       (label "10" #t #f 'white 'black 'white 3)
-                       move)
-               (button 2
-                       #t
-                       (label "11" #t #f 'white 'black 'white 3)
-                       move)
-               (button 3
-                       #t
-                       (label "12" #t #f 'white 'black 'white 3)
-                       move)))
-   #;(container 3
-              #t
-              0
-              (* 3 btn-h)
-              'transparent
-              #f
-              #f
-              #f
-              #f
-              #f
-              0
-              0
-              btn-w
-              btn-h
-              #f
-              #f
-              #f
-              (list               
-               (button 0
-                       #t
-                       (label "13" #t #f 'white 'black 'white 3)
-                       move)
-               (button 1
-                       #t
-                       (label "14" #t #f 'white 'black 'white 3)
-                       move)
-               (button 2
-                       #t
-                       (label "15" #t #f 'white 'black 'white 3)
-                       move)
-               (button 0
-                       #t
-                       (label " " #t #f 'transparent 'white 'white 3)
-                       move)))))
-
-  (place-containers CONTAINERS
-                    MT)\|#
