@@ -235,8 +235,10 @@
   (define lbl/bg-img
     (overlay
      (cond
-       [(false? (label-font-size lbl))
-        (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]
+       [(false? (label-font-size lbl))        
+        (define f (with-handlers ([exn:fail? (λ (e) 1)])
+                    (factor lbl-img bg (label-padding lbl))))        
+        (scale f lbl-img)]
        [(or (> (+ (* 2 (label-padding lbl)) (image-width lbl-img)) (image-width bg))
             (> (+ (* 2 (label-padding lbl)) (image-height lbl-img)) (image-height bg)))
         (scale (factor lbl-img bg (label-padding lbl)) lbl-img)]

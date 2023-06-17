@@ -45,12 +45,7 @@
         (result list?))]
   ; Produces a new list grouping lst by n elements. 
   [group
-   (->i ([lst list?]
-         [n (lst) (and/c (integer-in 1 (length lst))
-                         (λ (n) 
-                           (zero? (modulo (length lst) n))))])
-        ()
-        (result list?))]
+   (-> list? (and/c natural? (>/c 0)) any)]
   ; Inserts val at position pos of list returning a new list.
   [insert-at
    (->i ([lst list?]
@@ -305,7 +300,10 @@
   (let loop ([lst lst] [acc empty])
     (cond
       [(empty? lst) (reverse acc)]
-      [(loop (drop lst n) (cons (take lst n) acc))])))
+      [(< (length lst) n)
+       (loop '() (cons lst acc))]
+      [else
+       (loop (drop lst n) (cons (take lst n) acc))])))
 
 (module+ test
   (test-case "group tests"
@@ -324,8 +322,8 @@
              ;; group by 0 should fail
              (check-exn exn:fail? (λ () (group LST 0)))
              
-             ;; group by 4 should fail
-             (check-exn exn:fail? (λ () (group LST 4)))))
+             ;; group by 6
+             (check-equal? (group LST 6) '((a b c d e f)))))
 
 ;; insert-at: lst pos val [#:splice] -> list?
 ;; Inserts val at position pos of list returning a new list.
