@@ -6,6 +6,10 @@
 ;;;
 
 (provide
+ (struct-out posn)
+ (struct-out place)
+ (struct-out image/loc)
+ place-images/loc
  rounded-rectangle
  color-frame/pixels
  color-frame/group
@@ -166,7 +170,7 @@
    (->i ()
         (#:base [base exact-nonnegative-integer?])
         #:rest [imgs (non-empty-listof image?)]       
-        (result image?))]))
+        (result image?))]));
 
 ;;--------------------------------------
 ;; import and implementation section
@@ -931,3 +935,33 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
                  img)]
       [else tmp]))  
   img)
+
+;; Places images on scene as determined by the posn and place
+;; values specifed in the image/loc struct. 
+(struct posn (x y) #:transparent)
+(struct place (x y) #:transparent)
+(struct image/loc (image posn place) #:transparent)
+
+(define/contract (place-images/loc #:place-default (place-default (place 'left 'top))
+                          images/loc scene)
+  (->* ((listof image/loc?) image?) (#:place-default place?) image?)
+  (cond
+    [(empty? images/loc) scene]
+    [else
+     (define loc (first images/loc))
+     (define image (image/loc-image loc))     
+     (define xy-posn (image/loc-posn loc))
+     (define x-offset (posn-x xy-posn))
+     (define y-offset (posn-y xy-posn))
+     (define xy-place (if (false? (image/loc-place loc))                          
+                          place-default
+                          (image/loc-place loc)))
+     (define x-place (place-x xy-place))
+     (define y-place (place-y xy-place))
+     
+     (place-images/loc #:place-default place-default
+                       (cdr images/loc)
+                       (place-image/align image
+                                          x-offset y-offset
+                                          x-place y-place
+                                          scene))]))

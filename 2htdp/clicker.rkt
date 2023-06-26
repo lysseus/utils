@@ -4,6 +4,9 @@
 ;;; CLICKER
 ;;;
 ;;; A basic library providing label, button and container widgets for 2htdp/image.
+;;; The key idea of clicker is that containers may be drawn in any compilation of
+;;; images, but mouse events are based on the primary scene (the one forming the
+;;; window). 
 ;;;
 
 (provide (contract-out
@@ -78,7 +81,9 @@
          current-container-button-label-defaults
          current-container-activate
          current-container-deactivate
-         current-container-buttons)
+         current-container-buttons
+         non-overlapping-containers/c
+         printf-containers-size)
 
 (require 2htdp/image
          anaphoric
@@ -561,3 +566,124 @@
            (begin
              (set-button-active?! btn #f)
              (list ctn btn))))
+
+;; Print information about the active containers/buttons regarding the containers
+;; width, height and rectangular diagonal coordinates.
+(define (printf-containers-size containers)
+  (define cs (filter (λ (c) (container-active? c)) containers))
+  (printf "Active: ~a~%" (length cs))
+
+  (define-values (xmins ymins xmaxs ymaxs)
+    (for/fold ([xmins empty] [ymins empty] [xmaxs empty] [ymaxs empty])
+              ([c cs]
+          [n (in-naturals)])
+      (define label-height (cond
+                             [(false? (container-label c)) 0]
+                             [else (max (label-font-size (container-label c))
+                                        (container-label-height))]))
+      (define num-buttons (length (filter (λ (b) (button-active? b)) (container-buttons c))))
+      (define ctn-label-width (if (container-buttons-vertical? c)
+                                  label-height
+                                  0))
+      (define ctn-label-height (if (container-buttons-vertical? c)
+                                   0
+                                   label-height))
+      (printf "n: ~a name: ~a active-buttons: ~a~%" n (container-name c) num-buttons)
+      (printf "    Width:~%")
+      (printf "\tx-offset: ~a~%" (container-x-offset c))
+      (define width (+ (if (false? (container-buttons-vertical? c))
+                           (* num-buttons (+ (container-button-width c) (* 2 (container-buttons-x-padding c))))
+                           (+ (container-button-width c) (* 2 (container-buttons-x-padding c))))
+                       ctn-label-width))
+      (printf "\tcontainer-label-width: ~a~%\tbutton-width: ~a~%\tpadding: ~a~%\tcontainer-width: ~a~%"
+              ctn-label-width
+              (container-button-width c)
+              (container-buttons-x-padding c)
+              width)
+      (printf "    Height~%")
+      (printf "\ty-offset: ~a~%" (container-y-offset c))
+      (define height (+ (if (false? (container-buttons-vertical? c))              
+                            (+ (container-button-height c) (* 2 (container-buttons-y-padding c)))
+                            (* num-buttons
+                               (+ (container-button-height c) (* 2 (container-buttons-y-padding c)))))
+                        ctn-label-height))
+      (printf "\tcontainer-label-height: ~a~%\tbutton-height: ~a~%\tpadding: ~a~%\tcontainer-height: ~a~%"
+              ctn-label-height
+              (container-button-height c)
+              (container-buttons-x-padding c)
+              height)
+      (define xmin (container-x-offset c))
+      (define ymin (container-y-offset c))
+      (define xmax (+ (container-x-offset c) width))
+      (define ymax (+ (container-y-offset c) height))
+      (printf "    Coordinates Diagonal: (~a, ~a) (~a, ~a)~%"
+              xmin ymin xmax ymax)
+      (values (cons xmin xmins)
+              (cons ymin ymins)
+              (cons xmax xmaxs)
+              (cons ymax ymaxs))))
+  (define xmin (apply min xmins))
+  (define ymin (apply min ymins))
+  (define xmax (apply max xmaxs))
+  (define ymax (apply max ymaxs))
+  (printf "Containers Coordinates Diagonal: [~a ~a) (~a ~a)~%"
+          xmin ymin xmax ymax)
+  (printf "Containers width: ~a height: ~a~%" (- xmax xmin) (- ymax ymin)))
+
+;; Validates that the containers do not have overlapping
+;; containers. Containers are said to overlap when their rectangular
+;; coordinates overlap.
+(struct container-diagonal (name x1 y1 x2 y2) #:transparent)
+(define (non-overlapping-containers/c containers)
+  ;; Filter containers for active.
+  (define cs (filter (λ (c) (container-active? c)) containers))
+
+  (define points
+    (for/list ([c cs]
+               [n (in-naturals)])
+      (define label-height (cond
+                             [(false? (container-label c)) 0]
+                             [else (max (label-font-size (container-label c))
+                                        (container-label-height))]))
+      (define num-buttons (length (filter (λ (b) (button-active? b)) (container-buttons c))))
+      (define ctn-label-width (if (container-buttons-vertical? c)
+                                  label-height
+                                  0))
+      (define ctn-label-height (if (container-buttons-vertical? c)
+                                   0
+                                   label-height))    
+      (define width (+ (if (false? (container-buttons-vertical? c))
+                           (* num-buttons (+ (container-button-width c) (* 2 (container-buttons-x-padding c))))
+                           (+ (container-button-width c) (* 2 (container-buttons-x-padding c))))
+                       ctn-label-width))        
+      (define height (+ (if (false? (container-buttons-vertical? c))              
+                            (+ (container-button-height c) (* 2 (container-buttons-y-padding c)))
+                            (* num-buttons
+                               (+ (container-button-height c) (* 2 (container-buttons-y-padding c)))))
+                        ctn-label-height))    
+      (container-diagonal (container-name c)
+                          (container-x-offset c)
+                          (container-y-offset c)
+                          (+ (container-x-offset c) width)
+                          (+ (container-y-offset c) height))))
+  
+  (define (p-in-box? p d)
+    (and (<= (container-diagonal-x1 d) (car p)  (container-diagonal-x2 d))
+         (<= (container-diagonal-y1 d) (cadr p) (container-diagonal-y2 d))))
+  
+  (define (d-in-box? d1 d2)
+    (define p1 (list (container-diagonal-x1 d1) (container-diagonal-y1 d1)))
+    (define p2 (list (container-diagonal-x1 d1) (container-diagonal-y2 d1)))
+    (define p3 (list (container-diagonal-x2 d1) (container-diagonal-y1 d1)))
+    (define p4 (list (container-diagonal-x2 d1) (container-diagonal-y2 d1)))
+    
+    (for/or ([p (list p1 p2 p3 p4)]) (p-in-box? p d2)))
+
+  (for* ([d1 points]
+         [d2  (remove d1 points)])
+    (define d1-name (container-diagonal-name d1))
+    (define d2-name (container-diagonal-name d2))
+    
+    (cond
+      [(not (d-in-box? d1 d2)) (void)]      
+      [else (error (format "container ~a overlaps container ~a." d1-name d2-name))])))
