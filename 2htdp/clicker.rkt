@@ -83,12 +83,14 @@
          current-container-deactivate
          current-container-buttons
          non-overlapping-containers/c
-         printf-containers-size)
+         printf-containers-size
+         (struct-out clicker-evt)
+         current-clicker-evt)
 
 (require 2htdp/image
          anaphoric
          racket/undefined
-         utils/defstruct)
+         utils/struct)
 
 
 (define/contract (pen-or-color? v)
@@ -153,6 +155,10 @@
                   (bo-color 'transparent (or/c #f pen? image-color?))
                   (padding #f (or/c #f natural?))))
 
+;; Creates a copy of a label instance. 
+(define (label-copy lbl)
+  (struct-copy label lbl))
+
 ;; Buttons specify:
 ;; - label (optional)
 ;; - active?
@@ -161,6 +167,17 @@
                    (active? #t boolean?)
                    (label #f (or/c #f label?))
                    (up-action (λ args (void)) procedure?)))
+
+;; Creates a copy of a button instance.
+;; The label for the button, if it exists, is also a copy.
+(define (button-copy btn)
+  (struct-copy button btn (label (if (false? (button-label btn))
+                                     #f
+                                     (label-copy (button-label btn))))))
+
+(define current-button-cache (make-parameter #f))
+(define (cache-button btn)
+  (current-button-cache (button-copy btn)))
 
 ;;; Continers specify:
 ;;; - label (optional)
@@ -452,6 +469,9 @@
      (define btn (second info))
      (list ctn btn)]))
 
+(struct clicker-evt (ctn btn ws x y mouse-evt (result #:mutable)) #:transparent)
+(define current-clicker-evt (make-parameter #f))
+
 ;; process-containers: containers ws x y evt ->|
 ;; Processes active container actions. 
 (define/contract (process-containers containers ws x y evt)
@@ -465,8 +485,9 @@
     [else
      (define ctn (first info))
      (define btn (second info))
-     (define result ((button-up-action btn) ctn btn ws x y))
-     (list ctn btn result)]))
+     (current-clicker-evt (clicker-evt ctn btn ws x y evt undefined))
+     (define result ((button-up-action btn)))
+     (set-clicker-evt-result! (current-clicker-evt) result)]))
 
 
 ;;;======================================================================================
