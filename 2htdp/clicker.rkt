@@ -19,10 +19,14 @@
                          (padding (or/c #f natural?)))]
           [struct button ((name (or/c natural? symbol? string? char?))
                           (active? boolean?)
+                          (up-action-active? boolean?)
+                          (state any/c)
                           (label (or/c #f label?))
                           (up-action procedure?))]
           [struct container ((name (or/c natural? symbol? string? char?))
                              (active? boolean?)
+                             (up-action-active? boolean?)
+                             (state any/c)
                              (x-offset integer?)
                              (y-offset integer?)
                              (bg-color (or/c pen? image-color?))
@@ -61,11 +65,15 @@
          make-button
          current-button-name
          current-button-active?
+         current-button-up-action-active?
+         current-button-state
          current-button-label
          current-button-up-action
          make-container
          current-container-name
          current-container-active?
+         current-container-up-action-active?
+         current-container-state
          current-container-x-offset
          current-container-y-offset
          current-container-bg-color
@@ -113,6 +121,16 @@
   (cond
     [(and (container? o) (container-active? o)) #t]
     [(and (button? o) (button-active? o)) #t]
+    [else #f]))
+
+
+;; up-action-active? o -> boolean?
+;; Returns true if the container or button up-action is active;
+;; otherwise returns false. 
+(define (up-action-active? o)
+  (cond
+    [(and (container? o) (container-up-action-active? o)) #t]
+    [(and (button? o) (button-up-action-active? o)) #t]
     [else #f]))
 
 ;; factor: img1 img2 (pad) -> real?
@@ -165,6 +183,8 @@
 ;; - up-action
 (defstruct button ((name "" (or/c natural? symbol? string? char?))
                    (active? #t boolean?)
+                   (up-action-active? #t boolean?)
+                   (state undefined any/c)
                    (label #f (or/c #f label?))
                    (up-action (λ args (void)) procedure?)))
 
@@ -192,6 +212,8 @@
 ;;; - button-list
 (defstruct container ((name "" (or/c natural? symbol? string? char?))
                       (active? #t boolean?)
+                      (up-action-active? #t boolean?)
+                      (state undefined any/c)
                       (x-offset 0 integer?)
                       (y-offset 0 integer?)
                       (bg-color 'transparent (or/c pen? image-color?))
@@ -486,7 +508,9 @@
      (define ctn (first info))
      (define btn (second info))
      (current-clicker-evt (clicker-evt ctn btn ws x y evt undefined))
-     (define result ((button-up-action btn)))
+     (define result (if (and (up-action-active? ctn) (up-action-active? btn))
+                        ((button-up-action btn))
+                        undefined))
      (set-clicker-evt-result! (current-clicker-evt) result)]))
 
 

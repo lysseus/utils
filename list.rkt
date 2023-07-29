@@ -6,6 +6,7 @@
 ;;;
 
 (provide
+ range/length
  trim
  list*?
  list->list*
@@ -897,3 +898,19 @@
   (test-case "trim tests"
              (check-equal? (trim '(a a a b c d a a) 'a)
                            '(b c d))))
+
+;; (range/length len [start] [step]) -> (listof number?)
+;; The resulting list holds numbers starting at start, and whose successive elements are
+;; computed by adding stepto their predecessor until list length is reached. If no
+;; starting point is provided, then 0 is used. If no step is provided, then 1 is used.
+(define range/length
+  (case-lambda
+    [(len) (range len)]
+    [(len start) (range start (+ start len))]
+    [(len start step) (range start (+ start (* len step)) step)]))
+
+(module+ test
+  (test-case "range/length tests"
+             (check-equal? (range/length 3) '(0 1 2))
+             (check-equal? (range/length 3 10) '(10 11 12))
+             (check-equal? (range/length 3 10 2) '(10 12 14))))
