@@ -83,54 +83,58 @@
         x-place?)
        (values image? cons?))
   (define toks (string-split txt))
-  (define spaces (make-list (sub1 (length toks)) " "))
-  (define strings (cons (car toks)
-                        (flatten (for/list ([space spaces]
-                                            [tok (rest toks)])
-                                   (list space tok)))))
-
-  (define images
-    (map (λ (v) (text v font-size font-color)) strings))
-  (define widths (map image-width images))
-  (define mx (apply max widths))
-  (when (> mx max-width)
-    (error (format "text-wrap token width ~a exceeds ~a" mx max-width)))
-
-  (define data
-    (for/list ([string strings]
-               [width widths]
-               [n (in-naturals)])
-      (list string width n)))
-
-  (define (loop data (w 0) (tmp empty) (acc empty))  
+  (define img
     (cond
-      [(empty? data) (reverse (if (empty? tmp)
-                                  acc
-                                  (cons (reverse tmp) acc)))]
+      [(empty? toks) empty-image]
       [else
-       (define d (car data))
-       (define width (second d))
-       (define tot (+ w width))       
-       (cond
-         [(<= (+ w (second (car data))) max-width)          
-          (loop (rest data)
-                (+ w (second (car data)))
-                (cons (car data) tmp)
-                acc)]
-         [else          
-          (loop (rest data) (second (car data)) (list d)
-                (cons (reverse tmp) acc))])]))
+       (define spaces (make-list (sub1 (length toks)) " "))
+       (define strings (cons (car toks)
+                             (flatten (for/list ([space spaces]
+                                                 [tok (rest toks)])
+                                        (list space tok)))))
 
-  (define ds (loop data))
-  (define rows (for/list ([lst ds])               
-                 (define cols (for/list ([d lst])
-                                (list-ref images (third d))))                 
-                 (if (= (length cols) 1)
-                     (first cols)
-                     (apply beside cols))))  
-  (define ans (if (= (length rows) 1)
-                  (first rows)
-                  (apply above/align align rows)))
-  (define f (if (false? max-height) 1 (/ max-height (image-height ans))))
-  (define scaled-img (scale f ans))
-  (values scaled-img (cons (image-width scaled-img) (image-height scaled-img))))
+       (define images
+         (map (λ (v) (text v font-size font-color)) strings))
+       (define widths (map image-width images))
+       (define mx (apply max widths))
+       (when (> mx max-width)
+         (error (format "text-wrap token width ~a exceeds ~a" mx max-width)))
+
+       (define data
+         (for/list ([string strings]
+                    [width widths]
+                    [n (in-naturals)])
+           (list string width n)))
+
+       (define (loop data (w 0) (tmp empty) (acc empty))  
+         (cond
+           [(empty? data) (reverse (if (empty? tmp)
+                                       acc
+                                       (cons (reverse tmp) acc)))]
+           [else
+            (define d (car data))
+            (define width (second d))
+            (define tot (+ w width))       
+            (cond
+              [(<= (+ w (second (car data))) max-width)          
+               (loop (rest data)
+                     (+ w (second (car data)))
+                     (cons (car data) tmp)
+                     acc)]
+              [else          
+               (loop (rest data) (second (car data)) (list d)
+                     (cons (reverse tmp) acc))])]))
+
+       (define ds (loop data))
+       (define rows (for/list ([lst ds])               
+                      (define cols (for/list ([d lst])
+                                     (list-ref images (third d))))                 
+                      (if (= (length cols) 1)
+                          (first cols)
+                          (apply beside cols))))  
+       (define ans (if (= (length rows) 1)
+                       (first rows)
+                       (apply above/align align rows)))
+       (define f (if (false? max-height) 1 (/ max-height (image-height ans))))
+       (scale f ans)]))
+  (values img (cons (image-width img) (image-height img))))

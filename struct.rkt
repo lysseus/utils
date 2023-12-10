@@ -4,7 +4,10 @@
 ;;; STRUCT
 ;;;
 
-(provide defstruct define-from-struct)
+(provide defstruct
+         define-from-struct
+         find-first-struct
+         find-structs)
 
 (require (for-syntax syntax/parse
                      racket/syntax))
@@ -103,3 +106,20 @@
              (define-from-struct foo (bar 1 2 3 4) w x)
              (check-equal? w 1)
              (check-equal? x 2)))
+
+;; find-first-struct: find-accessor find-val structs -> (or/c #f struct?)
+;; Finds the structure from the list of structurs that matches the find-val
+;; when the find-accessor is applied to it. 
+(define (find-first-struct find-accessor find-val structs)
+  (for/first ([o structs] #:when (equal? (find-accessor o) find-val))
+    o))
+
+;; find-structs: find-accessor find-val structs -> [(istof structs)
+;; Finds all the structurs from the list of structures that match the find-val
+;; when the find-accessor is applied to it.
+(define (find-structs find-accessor find-val structs)
+  (for/fold ([acc empty])
+            ([o structs])
+    (if (equal? (find-accessor o) find-val)
+        (cons o acc)
+        acc)))

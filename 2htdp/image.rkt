@@ -11,6 +11,7 @@
  (struct-out image/loc)
  place-images/loc
  rounded-rectangle
+ frame-image
  color-frame/pixels
  color-frame/group
  image-pad
@@ -851,6 +852,58 @@ Significant Pixel Line Offsets: left=~a right=~a top=~a bottom=~a
            (rectangle (+ (* 2 w) (image-width img))
                       (+ (* 2 h) (image-height img))
                       'solid clr)))
+
+;; Frames an image with orignal image scaled to fit inside the
+;; dimensions of the original image, framed with rectangle of
+;; specified color and thickness.
+(define/contract frame-image
+  (->i ((img image?))
+       (#:width (w natural?)
+        #:height (h natural?)
+        #:frame-color (c image-color?)
+        #:frame-thickness (t (w h) (between/c 0 (sub1 (quotient (min w h) w)))))
+       (result image?))
+  (let ([cache (make-hash)])
+    (λ (img
+        #:width (width (image-width img))
+        #:height (height (image-height img))
+        #:frame-color (frame-color 'white)
+        #:frame-thickness (frame-thickness 1))
+  (define key (list img width height frame-color frame-thickness))
+  (cond
+    [(hash-has-key? cache key)
+     (hash-ref cache key)]
+    [else     
+     (define img-width (image-width img))
+     (define img-height (image-height img))     
+     (define Δimg-width (- img-width (* 2 frame-thickness)))
+     (define Δimg-height (- img-height (* 2 frame-thickness)))     
+     (define Δx-f (cond
+                    [(positive? img-width) (/ Δimg-width width)]
+                    [else #f]))
+     (define Δy-f (cond
+                    [(positive? Δimg-height) (/ Δimg-height height)]
+                    [else #f]))     
+     (define scaled-img (cond
+                          [(zero? (min img-width img-height)) img]
+                          [(or (false? Δx-f)
+                               (false? Δy-f))
+                           (error "image can't be reduced to frame.")]
+                          [else (scale/xy Δx-f Δy-f img)]))     
+     (define (draw-frame w h frame-color)       
+       [rectangle w h 'outline frame-color])
+     (define frame
+       (cond
+         [(zero? frame-thickness) empty-image]
+         [(= frame-thickness 1)       
+          (draw-frame width height frame-color)]
+         [else (apply overlay (for/list ([n (range frame-thickness )])
+                                (define  w (- width (* 2 n)))
+                                (define h (- height (* 2 n)))
+                                (draw-frame w h frame-color)))]))
+     (define framed-img (overlay scaled-img frame))
+     (hash-set! cache key framed-img)
+     framed-img]))))
 
 ;; Wraps the image in a rectangular frame of n pixel thickness.
 (define/contract (color-frame/pixels clr img (n 1))

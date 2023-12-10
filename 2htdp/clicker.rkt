@@ -20,13 +20,13 @@
           [struct button ((name (or/c natural? symbol? string? char?))
                           (active? boolean?)
                           (up-action-active? boolean?)
-                          (state any/c)
+                          (tag any/c)
                           (label (or/c #f label?))
                           (up-action procedure?))]
           [struct container ((name (or/c natural? symbol? string? char?))
                              (active? boolean?)
                              (up-action-active? boolean?)
-                             (state any/c)
+                             (tag any/c)
                              (x-offset integer?)
                              (y-offset integer?)
                              (bg-color (or/c pen? image-color?))
@@ -47,9 +47,11 @@
          process-containers
          place-containers
          find-container
+         find-tag-container
          activate-container
          deactivate-container
          find-container/button
+         find-tag-container/button
          find-button
          activate-button
          deactivate-button
@@ -66,14 +68,14 @@
          current-button-name
          current-button-active?
          current-button-up-action-active?
-         current-button-state
+         current-button-tag
          current-button-label
          current-button-up-action
          make-container
          current-container-name
          current-container-active?
          current-container-up-action-active?
-         current-container-state
+         current-container-tag
          current-container-x-offset
          current-container-y-offset
          current-container-bg-color
@@ -184,7 +186,7 @@
 (defstruct button ((name "" (or/c natural? symbol? string? char?))
                    (active? #t boolean?)
                    (up-action-active? #t boolean?)
-                   (state undefined any/c)
+                   (tag undefined any/c)
                    (label #f (or/c #f label?))
                    (up-action (λ args (void)) procedure?)))
 
@@ -213,7 +215,7 @@
 (defstruct container ((name "" (or/c natural? symbol? string? char?))
                       (active? #t boolean?)
                       (up-action-active? #t boolean?)
-                      (state undefined any/c)
+                      (tag undefined any/c)
                       (x-offset 0 integer?)
                       (y-offset 0 integer?)
                       (bg-color 'transparent (or/c pen? image-color?))
@@ -518,18 +520,33 @@
 ;;; (De)Activating containers and buttons
 ;;;======================================================================================
 
-;; find-struct: find-accessor find-val structs -> (or/c #f struct?)
-;; Finds the structure from the list of structurs that matches the find-val
-;; when the find-accessor is applied to it. 
-(define (find-struct find-accessor find-val structs)
-  (for/first ([o structs] #:when (equal? (find-accessor o) find-val))
-    o))
-
 ;; find-container: ctn-name containers -> (or/c #f container?)
 ;; Returns the container matching cnt-name. 
 (define/contract (find-container ctn-name containers)
   (-> (or/c symbol? integer?) (listof container?) (or/c #f container?))
-  (find-struct container-name ctn-name containers))
+  (find-first-struct container-name ctn-name containers))
+
+(define/contract (find-tag-container #:active? (active? #t)
+                                     #:up-action-active? (up-action-active? #t)
+                                     tag containers)
+  (->* (any/c (listof container?))
+       (#:active? boolean?
+        #:up-action-active? boolean?)
+       list?)
+  (for/fold ([acc empty])
+            ([ctn (find-structs container-tag tag containers)])
+    (printf "ative?=~a ~a~%" (container-active? ctn)
+            (eq? (container-active? ctn)
+                 active?))
+    (printf "up-action-ative?=~a~a ~%" (container-up-action-active? ctn)
+            (eq? (container-up-action-active? ctn)
+                 up-action-active?))
+    (if (and (eq? (container-active? ctn)
+                  active?)
+             (eq? (container-up-action-active? ctn)
+                  up-action-active?))
+        (cons ctn acc)
+        acc)))
 
 ;; find-container/button: ctn-name btn-name containers
 ;; Returns a list containering the container and button specified, or false
@@ -540,7 +557,7 @@
       (listof container?)
       (or/c #f (list/c container? button?)))
   (and-let [ctn (find-container ctn-name containers)]
-           [btn (find-struct button-name btn-name (container-buttons ctn))]
+           [btn (find-first-struct button-name btn-name (container-buttons ctn))]
            (list ctn btn)))
 
 ;; find-button: ctn-name btn-name containers -> (or/c #f button?)
@@ -553,19 +570,37 @@
   (and-let [result (find-container/button ctn-name btn-name containers)]
            (second result)))
 
+(define (find-tag-container/button #:ctn-active? (ctn-active? #t)
+                                   #:ctn-up-action-active? (ctn-up-action-active? #t)
+                                   #:btn-active? (btn-active? #t)
+                                   #:btn-up-action-active? (btn-up-action-active? #t)
+                                   ctn-tag btn-tag containers)
+  (define ctns (find-tag-container #:active? ctn-active?
+                                   #:up-action-active? ctn-up-action-active?
+                                   ctn-tag containers))
+  (for/list ([ctn ctns])
+    (define btns (container-buttons ctn))
+    (list ctn
+          (for/fold ([btn-acc empty])
+                    ([btn (container-buttons ctn)])            
+            (if (and (eq? (button-active? btn) btn-active?)
+                     (eq? (button-up-action-active? btn) btn-up-action-active?))
+                (cons btn btn-acc)
+                btn-acc)))))
+
 ;; set-accessor! find-accessor find-val set-accessor set-val structs -> (or/c #f struct?)
 ;; Sets the structure slot set-accessor with set-val for the structure matching
 ;; the find-val when find-accessor is applied. If no structure matches find-val
 ;; then #f is treturned. When a match is found the slot is set and the matching
 ;; structure is returned. 
 (define (set-accessor! find-accessor find-val set-accessor set-val structs)
-  (define s (find-struct find-accessor find-val structs))
+  (define s (find-first-struct find-accessor find-val structs))
   (when s (set-accessor s set-val))
   s)
 
 ;; activate-container: ctn-name ws containers -> (or/c #f container?)
 ;; Activates the matching container. If the container has an activate function
-;; this is passed the world-state and its result returned.
+;; this is passed the world-tag and its result returned.
 (define/contract (activate-container ctn-name ws containers)
   (-> (or/c symbol? integer?) any/c (listof container?) any)
   (and-let [ctn (set-accessor! container-name
@@ -575,7 +610,7 @@
 
 ;; deactivate-container: ctn-name ws containers -> any
 ;; Deactivates the matching container. If the container has a deactivate function
-;; this is passed the world-state and its result returned. 
+;; this is passed the world-tag and its result returned. 
 (define/contract (deactivate-container ctn-name ws containers)
   (-> (or/c symbol? integer?) any/c (listof container?) any)
   (and-let [ctn (set-accessor! container-name
@@ -591,7 +626,7 @@
       (listof container?)
       (or/c #f (list/c container? button?)))
   (and-let [ctn (find-container ctn-name containers)]
-           [btn (find-struct button-name btn-name (container-buttons ctn))]
+           [btn (find-first-struct button-name btn-name (container-buttons ctn))]
            (begin
              (set-button-active?! btn #t)
              (list ctn btn))))
@@ -607,7 +642,7 @@
       (listof container?)
       (or/c #f (list/c container? button?)))
   (and-let [ctn (find-container ctn-name containers)]
-           [btn (find-struct button-name btn-name (container-buttons ctn))]
+           [btn (find-first-struct button-name btn-name (container-buttons ctn))]
            (begin
              (set-button-active?! btn #f)
              (list ctn btn))))
